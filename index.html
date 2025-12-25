@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Solární bojler – výroba</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  margin: 20px;
+}
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 900px;
+  margin: auto;
+}
+h1 {
+  text-align: center;
+}
+.stats {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+  font-size: 1.2em;
+}
+</style>
+</head>
+
+<body>
+<div class="card">
+  <h1>☀️ Solární ohřev bojleru</h1>
+
+  <div class="stats">
+    <div>🔥 Bojler: <span id="bojler">–</span> °C</div>
+    <div>☀️ Panel: <span id="panel">–</span> °C</div>
+    <div>⚡ Výroba: <span id="energy">–</span> kWh</div>
+  </div>
+
+  <canvas id="chart"></canvas>
+</div>
+
+<script>
+const CHANNEL_ID = 33442;
+const RESULTS = 1440; // cca 1 den
+const BOILER_LITERS = 250;
+const KWH_PER_DEGREE = (BOILER_LITERS * 4.186) / 3600;
+
+fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?results=${RESULTS}`)
+  .then(r => r.json())
+  .then(data => {
+    let labels = [];
+    let boilerTemps = [];
+    let panelTemps = [];
+
+    data.feeds.forEach(f => {
+      let tb = parseFloat(f.field2); // bojler
+      let tp = parseFloat(f.field1); // panel
+      if (!isNaN(tb) && !isNaN(tp)) {
+        labels.push(new Date(f.created_at).toLocaleTimeString("cs-CZ"));
+        boilerTemps.push(tb);
+        panelTemps.push(tp);
+      }
+    });
+
+    // výpočet energie
+    let energy = 0;
+    for (let i = 1; i < boilerTemps.length; i++) {
+      let dT = boilerTemps[i] - boilerTemps[i - 1];
+      if (dT > 0) energy += dT * KWH_PER_DEGREE;
+    }
+
+    // aktuální hodnoty
+    document.getElementById("bojler").textContent =
+      boilerTemps.at(-1).toFixed(1);
+    document.getElementById("panel").textContent =
+      panelTemps.at(-1).toFixed(1);
+    document.getElementById("energy").textContent =
+      energy.toFixed(2);
+
+    // graf
+    new Chart(document.getElementById("chart"), {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Bojler (°C)",
+            data: boilerTemps,
+            borderWidth: 2,
+            tension: 0.2
+          },
+          {
+            label: "Panel (°C)",
+            data: panelTemps,
+            borderWidth: 2,
+            tension: 0.2
+          }
+        ]
+      },
+      options: {
+        scales: {
+          y: { title: { display: true, text: "Teplota °C" } },
+          x: { display: false }
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>
