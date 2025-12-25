@@ -2,42 +2,72 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Solární bojler – výroba</title>
+<title>Solární bojler – statistiky</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+:root {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --text: #000;
+}
+.dark {
+  --bg: #121212;
+  --card: #1e1e1e;
+  --text: #eaeaea;
+}
 body {
   font-family: Arial, sans-serif;
-  background: #f4f6f8;
-  margin: 20px;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 20px;
 }
 .card {
-  background: white;
+  background: var(--card);
+  border-radius: 10px;
   padding: 20px;
-  border-radius: 8px;
-  max-width: 900px;
+  max-width: 1100px;
   margin: auto;
 }
-h1 {
-  text-align: center;
-}
+h1 { text-align: center; }
 .stats {
-  display: flex;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+  gap: 10px;
   margin: 20px 0;
-  font-size: 1.2em;
+}
+button, select {
+  padding: 8px;
+  font-size: 1em;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 </style>
 </head>
 
 <body>
 <div class="card">
-  <h1>☀️ Solární ohřev bojleru</h1>
+  <div class="top">
+    <h1>☀️ Solární bojler</h1>
+    <div>
+      <button onclick="toggleDark()">🌙 Tmavý režim</button>
+      <button onclick="exportCSV()">⬇️ CSV</button>
+    </div>
+  </div>
+
+  <select id="daySelect" onchange="renderDay()"></select>
 
   <div class="stats">
-    <div>🔥 Bojler: <span id="bojler">–</span> °C</div>
-    <div>☀️ Panel: <span id="panel">–</span> °C</div>
-    <div>⚡ Výroba: <span id="energy">–</span> kWh</div>
+    <div>🔥 Bojler: <b id="bojler">–</b> °C</div>
+    <div>☀️ Panel: <b id="panel">–</b> °C</div>
+    <div>⚡ Denní výroba: <b id="energy">–</b> kWh</div>
+    <div>📅 Měsíc: <b id="month">–</b> kWh</div>
+    <div>📈 Účinnost: <b id="eff">–</b> %</div>
   </div>
 
   <canvas id="chart"></canvas>
@@ -45,70 +75,111 @@ h1 {
 
 <script>
 const CHANNEL_ID = 33442;
-const RESULTS = 1440; // cca 1 den
+const RESULTS = 8000;
 const BOILER_LITERS = 250;
 const KWH_PER_DEGREE = (BOILER_LITERS * 4.186) / 3600;
 
+let rawData = {};
+let chart;
+
 fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?results=${RESULTS}`)
-  .then(r => r.json())
-  .then(data => {
-    let labels = [];
-    let boilerTemps = [];
-    let panelTemps = [];
+.then(r => r.json())
+.then(data => {
+  data.feeds.forEach(f => {
+    let date = f.created_at.slice(0,10);
+    let tb = parseFloat(f.field2);
+    let tp = parseFloat(f.field1);
+    if (isNaN(tb) || isNaN(tp)) return;
 
-    data.feeds.forEach(f => {
-      let tb = parseFloat(f.field2); // bojler
-      let tp = parseFloat(f.field1); // panel
-      if (!isNaN(tb) && !isNaN(tp)) {
-        labels.push(new Date(f.created_at).toLocaleTimeString("cs-CZ"));
-        boilerTemps.push(tb);
-        panelTemps.push(tp);
-      }
-    });
-
-    // výpočet energie
-    let energy = 0;
-    for (let i = 1; i < boilerTemps.length; i++) {
-      let dT = boilerTemps[i] - boilerTemps[i - 1];
-      if (dT > 0) energy += dT * KWH_PER_DEGREE;
-    }
-
-    // aktuální hodnoty
-    document.getElementById("bojler").textContent =
-      boilerTemps.at(-1).toFixed(1);
-    document.getElementById("panel").textContent =
-      panelTemps.at(-1).toFixed(1);
-    document.getElementById("energy").textContent =
-      energy.toFixed(2);
-
-    // graf
-    new Chart(document.getElementById("chart"), {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Bojler (°C)",
-            data: boilerTemps,
-            borderWidth: 2,
-            tension: 0.2
-          },
-          {
-            label: "Panel (°C)",
-            data: panelTemps,
-            borderWidth: 2,
-            tension: 0.2
-          }
-        ]
-      },
-      options: {
-        scales: {
-          y: { title: { display: true, text: "Teplota °C" } },
-          x: { display: false }
-        }
-      }
+    if (!rawData[date]) rawData[date] = [];
+    rawData[date].push({
+      time: new Date(f.created_at),
+      boiler: tb,
+      panel: tp
     });
   });
+
+  let select = document.getElementById("daySelect");
+  Object.keys(rawData).sort().forEach(d => {
+    let o = document.createElement("option");
+    o.value = d;
+    o.textContent = d;
+    select.appendChild(o);
+  });
+  select.selectedIndex = select.options.length - 1;
+  renderDay();
+});
+
+function renderDay() {
+  let day = document.getElementById("daySelect").value;
+  let d = rawData[day];
+  let labels = [];
+  let boiler = [];
+  let panel = [];
+  let energy = 0;
+  let theoretical = 0;
+
+  for (let i=1;i<d.length;i++) {
+    labels.push(d[i].time.toLocaleTimeString("cs-CZ"));
+    boiler.push(d[i].boiler);
+    panel.push(d[i].panel);
+
+    let dT = d[i].boiler - d[i-1].boiler;
+    if (dT > 0) energy += dT * KWH_PER_DEGREE;
+
+    let dTP = d[i].panel - d[i].boiler;
+    if (dTP > 0) theoretical += dTP * KWH_PER_DEGREE;
+  }
+
+  document.getElementById("bojler").textContent = boiler.at(-1).toFixed(1);
+  document.getElementById("panel").textContent = panel.at(-1).toFixed(1);
+  document.getElementById("energy").textContent = energy.toFixed(2);
+
+  let month = day.slice(0,7);
+  let monthEnergy = 0;
+  Object.keys(rawData).forEach(dy => {
+    if (dy.startsWith(month)) {
+      let arr = rawData[dy];
+      for (let i=1;i<arr.length;i++) {
+        let dt = arr[i].boiler - arr[i-1].boiler;
+        if (dt > 0) monthEnergy += dt * KWH_PER_DEGREE;
+      }
+    }
+  });
+  document.getElementById("month").textContent = monthEnergy.toFixed(1);
+
+  let eff = theoretical > 0 ? (energy / theoretical * 100) : 0;
+  document.getElementById("eff").textContent = eff.toFixed(1);
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label:"Bojler °C", data:boiler, borderWidth:2 },
+        { label:"Panel °C", data:panel, borderWidth:2 }
+      ]
+    },
+    options: { scales:{ x:{display:false} } }
+  });
+}
+
+function exportCSV() {
+  let rows = ["date,time,bojler,panel"];
+  Object.values(rawData).flat().forEach(r => {
+    rows.push(`${r.time.toISOString().slice(0,10)},${r.time.toLocaleTimeString()},${r.boiler},${r.panel}`);
+  });
+  let blob = new Blob([rows.join("\n")], {type:"text/csv"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "bojler.csv";
+  a.click();
+}
+
+function toggleDark() {
+  document.body.classList.toggle("dark");
+}
 </script>
 </body>
 </html>
