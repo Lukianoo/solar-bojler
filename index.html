@@ -2,71 +2,89 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Solární bojler – statistiky</title>
+<title>Solární bojler – roční přehled</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 :root {
-  --bg: #f4f6f8;
-  --card: #ffffff;
-  --text: #000;
+  --bg:#f4f6f8; --card:#fff; --text:#000; --accent:#ff9800;
 }
 .dark {
-  --bg: #121212;
-  --card: #1e1e1e;
-  --text: #eaeaea;
+  --bg:#121212; --card:#1e1e1e; --text:#eaeaea;
 }
 body {
   font-family: Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  margin: 0;
-  padding: 20px;
+  margin:0; padding:20px;
 }
 .card {
   background: var(--card);
-  border-radius: 10px;
-  padding: 20px;
-  max-width: 1100px;
-  margin: auto;
-}
-h1 { text-align: center; }
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
-  gap: 10px;
-  margin: 20px 0;
-}
-button, select {
-  padding: 8px;
-  font-size: 1em;
+  border-radius:10px;
+  padding:20px;
+  max-width:1200px;
+  margin:auto;
 }
 .top {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
 }
+.stats {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:10px;
+  margin:20px 0;
+}
+button {
+  padding:6px 10px;
+  cursor:pointer;
+}
+#calendar {
+  display:grid;
+  grid-template-columns:repeat(31,1fr);
+  gap:4px;
+  font-size:0.75em;
+  margin-bottom:15px;
+}
+.day {
+  padding:6px;
+  text-align:center;
+  border-radius:4px;
+  cursor:pointer;
+  background:#ccc;
+}
+.day.hasData { background:#8bc34a; }
+.day.today { outline:2px solid var(--accent); }
+.day.selected { background:var(--accent); color:#000; }
+.month-label {
+  grid-column:1/-1;
+  font-weight:bold;
+  margin-top:10px;
+}
+canvas { margin-top:20px; }
 </style>
 </head>
 
 <body>
 <div class="card">
   <div class="top">
-    <h1>☀️ Solární bojler</h1>
+    <h1>☀️ Solární bojler – roční přehled</h1>
     <div>
       <button onclick="toggleDark()">🌙 Tmavý režim</button>
       <button onclick="exportCSV()">⬇️ CSV</button>
     </div>
   </div>
 
-  <select id="daySelect" onchange="renderDay()"></select>
+  <div id="calendar"></div>
 
   <div class="stats">
+    <div>📅 Den: <b id="selDay">–</b></div>
     <div>🔥 Bojler: <b id="bojler">–</b> °C</div>
     <div>☀️ Panel: <b id="panel">–</b> °C</div>
     <div>⚡ Denní výroba: <b id="energy">–</b> kWh</div>
-    <div>📅 Měsíc: <b id="month">–</b> kWh</div>
+    <div>📆 Měsíc: <b id="month">–</b> kWh</div>
     <div>📈 Účinnost: <b id="eff">–</b> %</div>
   </div>
 
@@ -81,103 +99,125 @@ const KWH_PER_DEGREE = (BOILER_LITERS * 4.186) / 3600;
 
 let rawData = {};
 let chart;
+let selectedDay;
 
 fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?results=${RESULTS}`)
-.then(r => r.json())
-.then(data => {
-  data.feeds.forEach(f => {
-    let date = f.created_at.slice(0,10);
+.then(r=>r.json())
+.then(data=>{
+  data.feeds.forEach(f=>{
+    let day = f.created_at.slice(0,10);
     let tb = parseFloat(f.field2);
     let tp = parseFloat(f.field1);
-    if (isNaN(tb) || isNaN(tp)) return;
-
-    if (!rawData[date]) rawData[date] = [];
-    rawData[date].push({
-      time: new Date(f.created_at),
-      boiler: tb,
-      panel: tp
+    if(isNaN(tb)||isNaN(tp)) return;
+    if(!rawData[day]) rawData[day]=[];
+    rawData[day].push({
+      time:new Date(f.created_at),
+      boiler:tb,
+      panel:tp
     });
   });
-
-  let select = document.getElementById("daySelect");
-  Object.keys(rawData).sort().forEach(d => {
-    let o = document.createElement("option");
-    o.value = d;
-    o.textContent = d;
-    select.appendChild(o);
-  });
-  select.selectedIndex = select.options.length - 1;
-  renderDay();
+  buildCalendar();
 });
 
-function renderDay() {
-  let day = document.getElementById("daySelect").value;
-  let d = rawData[day];
-  let labels = [];
-  let boiler = [];
-  let panel = [];
-  let energy = 0;
-  let theoretical = 0;
+function buildCalendar() {
+  let cal = document.getElementById("calendar");
+  cal.innerHTML="";
+  let year = new Date().getFullYear();
+  let today = new Date().toISOString().slice(0,10);
 
-  for (let i=1;i<d.length;i++) {
+  for(let m=0;m<12;m++){
+    let ml=document.createElement("div");
+    ml.className="month-label";
+    ml.textContent=new Date(year,m,1).toLocaleString("cs-CZ",{month:"long"});
+    cal.appendChild(ml);
+
+    let days=new Date(year,m+1,0).getDate();
+    for(let d=1;d<=days;d++){
+      let date=`${year}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      let div=document.createElement("div");
+      div.textContent=d;
+      div.className="day";
+      if(rawData[date]) div.classList.add("hasData");
+      if(date===today) div.classList.add("today");
+      div.onclick=()=>selectDay(date,div);
+      cal.appendChild(div);
+    }
+  }
+
+  let last = Object.keys(rawData).sort().at(-1);
+  if(last) selectDay(last);
+}
+
+function selectDay(day,el){
+  selectedDay=day;
+  document.querySelectorAll(".day").forEach(d=>d.classList.remove("selected"));
+  if(el) el.classList.add("selected");
+  renderDay(day);
+}
+
+function renderDay(day){
+  let d=rawData[day];
+  if(!d) return;
+  document.getElementById("selDay").textContent=day;
+
+  let labels=[],boiler=[],panel=[];
+  let energy=0,theoretical=0;
+
+  for(let i=1;i<d.length;i++){
     labels.push(d[i].time.toLocaleTimeString("cs-CZ"));
     boiler.push(d[i].boiler);
     panel.push(d[i].panel);
 
-    let dT = d[i].boiler - d[i-1].boiler;
-    if (dT > 0) energy += dT * KWH_PER_DEGREE;
+    let dt=d[i].boiler-d[i-1].boiler;
+    if(dt>0) energy+=dt*KWH_PER_DEGREE;
 
-    let dTP = d[i].panel - d[i].boiler;
-    if (dTP > 0) theoretical += dTP * KWH_PER_DEGREE;
+    let tp=d[i].panel-d[i].boiler;
+    if(tp>0) theoretical+=tp*KWH_PER_DEGREE;
   }
 
-  document.getElementById("bojler").textContent = boiler.at(-1).toFixed(1);
-  document.getElementById("panel").textContent = panel.at(-1).toFixed(1);
-  document.getElementById("energy").textContent = energy.toFixed(2);
+  document.getElementById("bojler").textContent=boiler.at(-1).toFixed(1);
+  document.getElementById("panel").textContent=panel.at(-1).toFixed(1);
+  document.getElementById("energy").textContent=energy.toFixed(2);
 
-  let month = day.slice(0,7);
-  let monthEnergy = 0;
-  Object.keys(rawData).forEach(dy => {
-    if (dy.startsWith(month)) {
-      let arr = rawData[dy];
-      for (let i=1;i<arr.length;i++) {
-        let dt = arr[i].boiler - arr[i-1].boiler;
-        if (dt > 0) monthEnergy += dt * KWH_PER_DEGREE;
+  let month=day.slice(0,7);
+  let mE=0;
+  Object.keys(rawData).forEach(dy=>{
+    if(dy.startsWith(month)){
+      let a=rawData[dy];
+      for(let i=1;i<a.length;i++){
+        let dt=a[i].boiler-a[i-1].boiler;
+        if(dt>0) mE+=dt*KWH_PER_DEGREE;
       }
     }
   });
-  document.getElementById("month").textContent = monthEnergy.toFixed(1);
+  document.getElementById("month").textContent=mE.toFixed(1);
+  document.getElementById("eff").textContent=
+    theoretical>0?(energy/theoretical*100).toFixed(1):"0";
 
-  let eff = theoretical > 0 ? (energy / theoretical * 100) : 0;
-  document.getElementById("eff").textContent = eff.toFixed(1);
-
-  if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("chart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        { label:"Bojler °C", data:boiler, borderWidth:2 },
-        { label:"Panel °C", data:panel, borderWidth:2 }
-      ]
-    },
-    options: { scales:{ x:{display:false} } }
+  if(chart) chart.destroy();
+  chart=new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{labels,
+      datasets:[
+        {label:"Bojler °C",data:boiler,borderWidth:2},
+        {label:"Panel °C",data:panel,borderWidth:2}
+      ]}
   });
 }
 
-function exportCSV() {
-  let rows = ["date,time,bojler,panel"];
-  Object.values(rawData).flat().forEach(r => {
+function exportCSV(){
+  let rows=["date,time,bojler,panel"];
+  Object.values(rawData).flat().forEach(r=>{
     rows.push(`${r.time.toISOString().slice(0,10)},${r.time.toLocaleTimeString()},${r.boiler},${r.panel}`);
   });
-  let blob = new Blob([rows.join("\n")], {type:"text/csv"});
-  let a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "bojler.csv";
+  let b=new Blob([rows.join("\n")],{type:"text/csv"});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(b);
+  a.download="bojler.csv";
   a.click();
 }
 
-function toggleDark() {
+function toggleDark(){
   document.body.classList.toggle("dark");
 }
 </script>
