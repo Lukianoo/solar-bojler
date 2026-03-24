@@ -2,188 +2,432 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Solární bojler – statistiky</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solární bojler</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-:root {
-  --bg:#f4f6f8; --card:#fff; --text:#000;
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f6f8;--card:#fff;--card2:#f0f2f5;--text:#111;--muted:#666;
+  --border:#e0e2e6;--sun:#e8950a;--water:#1a7fd4;--accent:#0f6e56;
+  --badge-ok-bg:#eaf3de;--badge-ok-tx:#3b6d11;
+  --badge-warn-bg:#faeeda;--badge-warn-tx:#854f0b;
+  --badge-err-bg:#fcebeb;--badge-err-tx:#a32d2d;
 }
-.dark {
-  --bg:#121212; --card:#1e1e1e; --text:#eaeaea;
-}
-body {
-  font-family: Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  margin:0; padding:20px;
-}
-.card {
-  background: var(--card);
-  border-radius:10px;
-  padding:20px;
-  max-width:1100px;
-  margin:auto;
-}
-.top {
-  display:flex;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  gap:10px;
-}
-.stats {
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-  gap:10px;
-  margin:20px 0;
-}
-button, select {
-  padding:6px 10px;
-  font-size:1em;
-}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.shell{max-width:1140px;margin:0 auto;padding:20px 16px}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;background:var(--sun);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.logo svg{width:20px;height:20px;fill:#fff}
+.hdr-sub{font-size:12px;color:var(--muted);margin-top:1px}
+.hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:6px 14px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-weight:500}
+.btn:hover{background:var(--card2)}
+.btn-icon{padding:6px 10px;font-size:15px}
+select.day-sel{padding:6px 10px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer}
+
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.mc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.mc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.mc-val{font-size:26px;font-weight:600;line-height:1;color:var(--text)}
+.mc-unit{font-size:13px;font-weight:400;color:var(--muted);margin-left:3px}
+.mc-badge{display:inline-block;margin-top:6px;font-size:11px;padding:2px 8px;border-radius:20px}
+.ok{background:var(--badge-ok-bg);color:var(--badge-ok-tx)}
+.warn{background:var(--badge-warn-bg);color:var(--badge-warn-tx)}
+.err{background:var(--badge-err-bg);color:var(--badge-err-tx)}
+.mc.accent-sun{border-top:3px solid var(--sun)}
+.mc.accent-water{border-top:3px solid var(--water)}
+.mc.accent-green{border-top:3px solid var(--accent)}
+
+.chart-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 18px 14px}
+.chart-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chart-title{font-size:14px;font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+.chart-canvas-wrap{position:relative;width:100%;height:280px}
+
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:640px){.bottom{grid-template-columns:1fr}}
+.info-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.info-card h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--muted)}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px}
+.info-row:last-child{border-bottom:none}
+.info-row span:first-child{color:var(--muted)}
+
+.status-bar{display:flex;align-items:center;gap:6px;margin-bottom:14px;font-size:12px;color:var(--muted)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#ccc}
+.status-dot.live{background:#3b6d11;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.loader{text-align:center;padding:60px 0;color:var(--muted);font-size:14px}
+.progress-track{width:200px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
+.progress-bar{height:4px;background:var(--sun);border-radius:2px;width:0;transition:width .3s}
 </style>
 </head>
-
 <body>
-<div class="card">
-  <div class="top">
-    <h1>☀️ Solární bojler</h1>
-    <div>
-      <button onclick="toggleDark()">🌙 Tmavý režim</button>
-      <button onclick="exportCSV()">⬇️ CSV</button>
+<div class="shell">
+
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2l1.5 4.5h4.8l-3.9 2.8 1.5 4.7-3.9-2.8-3.9 2.8 1.5-4.7-3.9-2.8h4.8z"/></svg>
+      </div>
+      <div>
+        <div style="font-size:18px;font-weight:600">Solární bojler</div>
+        <div class="hdr-sub">Termický solární systém · 250 l</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <select class="day-sel" id="daySelect" onchange="renderDay()">
+        <option value="">Načítání…</option>
+      </select>
+      <button class="btn" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn btn-icon" onclick="toggleDark()" title="Tmavý režim">◑</button>
     </div>
   </div>
 
-  <!-- VÝBĚR DNE -->
-  <label>
-    📅 Vyber den:
-    <select id="daySelect" onchange="renderDay()"></select>
-  </label>
-
-  <div class="stats">
-    <div>🔥 Bojler: <b id="bojler">–</b> °C</div>
-    <div>☀️ Panel: <b id="panel">–</b> °C</div>
-    <div>⚡ Denní výroba: <b id="energy">–</b> kWh</div>
-    <div>📆 Měsíc: <b id="month">–</b> kWh</div>
-    <div>📈 Účinnost: <b id="eff">–</b> %</div>
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Načítám data z ThingSpeak…</span>
   </div>
 
-  <canvas id="chart"></canvas>
+  <div class="loader" id="loader">
+    <div>Načítám data…</div>
+    <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <div id="dashboard" style="display:none">
+
+    <div class="metrics">
+      <div class="mc accent-water">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1a7fd4" stroke-width="2.5"><path d="M12 2C6 10 4 14 4 16a8 8 0 0016 0c0-2-2-6-8-14z"/></svg>
+          Teplota bojleru
+        </div>
+        <div class="mc-val" id="mBoiler">–<span class="mc-unit">°C</span></div>
+        <div id="mBoilerBadge" class="mc-badge"></div>
+      </div>
+      <div class="mc accent-sun">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e8950a" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/></svg>
+          Teplota panelu
+        </div>
+        <div class="mc-val" id="mPanel">–<span class="mc-unit">°C</span></div>
+        <div id="mPanelBadge" class="mc-badge"></div>
+      </div>
+      <div class="mc accent-green">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.5"><polyline points="13 2 13 9 20 9"/><polyline points="11 22 11 15 4 15"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+          Výroba dnes
+        </div>
+        <div class="mc-val" id="mEnergy">–<span class="mc-unit">kWh</span></div>
+        <div class="mc-badge ok" id="mEnergyBadge"></div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Výroba tento měsíc
+        </div>
+        <div class="mc-val" id="mMonth">–<span class="mc-unit">kWh</span></div>
+        <div class="mc-badge" id="mMonthBadge"></div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Δ Panel – Bojler
+        </div>
+        <div class="mc-val" id="mDelta">–<span class="mc-unit">°C</span></div>
+        <div id="mDeltaBadge" class="mc-badge"></div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Poslední aktualizace
+        </div>
+        <div style="font-size:16px;font-weight:600;margin-top:4px" id="mTime">–</div>
+        <div class="mc-badge ok" id="mTimeBadge"></div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-hdr">
+        <div class="chart-title">Průběh teplot – <span id="chartDayLabel">–</span></div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#1a7fd4"></div>Bojler °C</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#e8950a"></div>Panel °C</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="info-card">
+        <h3>Parametry systému</h3>
+        <div class="info-row"><span>Objem bojleru</span><span>250 l</span></div>
+        <div class="info-row"><span>kWh / °C ohřevu</span><span id="iKwh">–</span></div>
+        <div class="info-row"><span>Max. teplota dnes</span><span id="iMaxBoiler">–</span></div>
+        <div class="info-row"><span>Min. teplota dnes</span><span id="iMinBoiler">–</span></div>
+        <div class="info-row"><span>Počet záznamů</span><span id="iCount">–</span></div>
+      </div>
+      <div class="info-card">
+        <h3>Statistiky měsíce <span id="iMonthName"></span></h3>
+        <div class="info-row"><span>Celkem kWh</span><span id="iMonthKwh">–</span></div>
+        <div class="info-row"><span>Průměr / den</span><span id="iAvgDay">–</span></div>
+        <div class="info-row"><span>Nejlepší den</span><span id="iBestDay">–</span></div>
+        <div class="info-row"><span>Dní s daty</span><span id="iDaysWithData">–</span></div>
+        <div class="info-row"><span>Kanál ThingSpeak</span><span style="color:#1a7fd4;font-size:12px">33442</span></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
 const CHANNEL_ID = 33442;
 const RESULTS = 8000;
-const BOILER_LITERS = 250;
-const KWH_PER_DEGREE = (BOILER_LITERS * 4.186) / 3600;
+const BOILER_L = 250;
+const KWH_PER_DEG = (BOILER_L * 4.186 * 1000) / 3600 / 1000;
 
 let rawData = {};
 let chart;
+let dark = false;
+
+let prog = 0;
+const pb = document.getElementById('progressBar');
+const pTimer = setInterval(() => { prog = Math.min(prog + 3, 85); pb.style.width = prog + '%'; }, 120);
 
 fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?results=${RESULTS}`)
-.then(r => r.json())
-.then(data => {
-  data.feeds.forEach(f => {
-    let day = f.created_at.slice(0,10);
-    let tb = parseFloat(f.field2); // bojler
-    let tp = parseFloat(f.field1); // panel
-    if (isNaN(tb) || isNaN(tp)) return;
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(data => {
+    clearInterval(pTimer); pb.style.width = '100%';
+    if (!data.feeds || data.feeds.length === 0) throw new Error('Žádná data v kanálu.');
 
-    if (!rawData[day]) rawData[day] = [];
-    rawData[day].push({
-      time: new Date(f.created_at),
-      boiler: tb,
-      panel: tp
+    data.feeds.forEach(f => {
+      const day = f.created_at.slice(0, 10);
+      const tb = parseFloat(f.field2);
+      const tp = parseFloat(f.field1);
+      if (isNaN(tb) || isNaN(tp)) return;
+      if (!rawData[day]) rawData[day] = [];
+      rawData[day].push({ time: new Date(f.created_at), boiler: tb, panel: tp });
     });
+
+    const sel = document.getElementById('daySelect');
+    sel.innerHTML = '';
+    Object.keys(rawData).sort().forEach(d => {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = formatDay(d);
+      sel.appendChild(o);
+    });
+    sel.selectedIndex = sel.options.length - 1;
+
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    setStatus(true);
+    renderDay();
+  })
+  .catch(err => {
+    clearInterval(pTimer);
+    document.getElementById('loader').innerHTML = `<div style="color:#a32d2d">Chyba načítání: ${err.message}</div>`;
+    setStatus(false, err.message);
   });
 
-  let select = document.getElementById("daySelect");
-  Object.keys(rawData).sort().forEach(d => {
-    let o = document.createElement("option");
-    o.value = d;
-    o.textContent = d;
-    select.appendChild(o);
-  });
+function setStatus(ok, msg) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (ok ? ' live' : '');
+  txt.textContent = ok ? 'Data aktuální · ThingSpeak kanál ' + CHANNEL_ID : 'Chyba: ' + msg;
+}
 
-  // automaticky vybere poslední (nejnovější) den
-  select.selectedIndex = select.options.length - 1;
-  renderDay();
-});
+function formatDay(d) {
+  const [y, m, day] = d.split('-');
+  return `${day}. ${m}. ${y}`;
+}
+
+function calcEnergy(arr) {
+  let e = 0;
+  for (let i = 1; i < arr.length; i++) {
+    const dt = arr[i].boiler - arr[i-1].boiler;
+    if (dt > 0) e += dt * KWH_PER_DEG;
+  }
+  return e;
+}
 
 function renderDay() {
-  let day = document.getElementById("daySelect").value;
-  let d = rawData[day];
-  if (!d) return;
+  const dayVal = document.getElementById('daySelect').value;
+  const d = rawData[dayVal];
+  if (!d || d.length < 2) return;
 
-  let labels = [];
-  let boiler = [];
-  let panel = [];
-  let energy = 0;
-  let theoretical = 0;
+  document.getElementById('chartDayLabel').textContent = formatDay(dayVal);
 
-  for (let i = 1; i < d.length; i++) {
-    labels.push(d[i].time.toLocaleTimeString("cs-CZ"));
-    boiler.push(d[i].boiler);
-    panel.push(d[i].panel);
-
-    // skutečná výroba
-    let dt = d[i].boiler - d[i - 1].boiler;
-    if (dt > 0) energy += dt * KWH_PER_DEGREE;
-
-    // teoretický potenciál (panel -> bojler)
-    let tp = d[i].panel - d[i].boiler;
-    if (tp > 0) theoretical += tp * KWH_PER_DEGREE;
+  const labels = [], boilerArr = [], panelArr = [];
+  for (let i = 0; i < d.length; i++) {
+    const t = d[i].time;
+    labels.push(t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0'));
+    boilerArr.push(+d[i].boiler.toFixed(1));
+    panelArr.push(+d[i].panel.toFixed(1));
   }
 
-  document.getElementById("bojler").textContent = boiler.at(-1).toFixed(1);
-  document.getElementById("panel").textContent = panel.at(-1).toFixed(1);
-  document.getElementById("energy").textContent = energy.toFixed(2);
+  const lastBoiler = d[d.length-1].boiler;
+  const lastPanel  = d[d.length-1].panel;
+  const delta      = lastPanel - lastBoiler;
+  const energy     = calcEnergy(d);
+  const maxB = Math.max(...d.map(x => x.boiler));
+  const minB = Math.min(...d.map(x => x.boiler));
+  const lastTime   = d[d.length-1].time;
 
-  // měsíční součet
-  let month = day.slice(0,7);
+  const month = dayVal.slice(0, 7);
+  const monthDays = Object.keys(rawData).filter(dy => dy.startsWith(month));
   let monthEnergy = 0;
-  Object.keys(rawData).forEach(dy => {
-    if (dy.startsWith(month)) {
-      let a = rawData[dy];
-      for (let i = 1; i < a.length; i++) {
-        let dt = a[i].boiler - a[i - 1].boiler;
-        if (dt > 0) monthEnergy += dt * KWH_PER_DEGREE;
+  let bestDayKwh = 0, bestDayStr = '–';
+  monthDays.forEach(dy => {
+    const e = calcEnergy(rawData[dy]);
+    monthEnergy += e;
+    if (e > bestDayKwh) { bestDayKwh = e; bestDayStr = formatDay(dy); }
+  });
+
+  set('mBoiler', lastBoiler.toFixed(1) + '<span class="mc-unit">°C</span>');
+  set('mPanel',  lastPanel.toFixed(1)  + '<span class="mc-unit">°C</span>');
+  set('mEnergy', energy.toFixed(2)     + '<span class="mc-unit">kWh</span>');
+  set('mMonth',  monthEnergy.toFixed(1)+ '<span class="mc-unit">kWh</span>');
+  set('mDelta',  delta.toFixed(1)      + '<span class="mc-unit">°C</span>');
+  set('mTime',   lastTime.toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'}));
+
+  badge('mBoilerBadge', lastBoiler >= 50 ? 'ok' : lastBoiler >= 35 ? 'warn' : 'err',
+        lastBoiler >= 50 ? 'Ohřátý' : lastBoiler >= 35 ? 'Ohřívá se' : 'Studený');
+  badge('mPanelBadge',  lastPanel > lastBoiler + 5 ? 'ok' : 'warn',
+        lastPanel > lastBoiler + 5 ? 'Nabíjí' : 'Nízký výkon');
+  badge('mEnergyBadge', energy > 1 ? 'ok' : energy > 0.3 ? 'warn' : 'err',
+        energy > 1 ? 'Dobrý výkon' : energy > 0.3 ? 'Částečný výkon' : 'Nízký výkon');
+  badge('mDeltaBadge',  delta > 10 ? 'ok' : delta > 0 ? 'warn' : 'err',
+        delta > 10 ? 'Čerpadlo běží' : delta > 0 ? 'Malý rozdíl' : 'Zima / noc');
+  badge('mMonthBadge',  '', '');
+  badge('mTimeBadge',   'ok', 'Živá data');
+
+  set('iKwh', KWH_PER_DEG.toFixed(3) + ' kWh');
+  set('iMaxBoiler', maxB.toFixed(1) + ' °C');
+  set('iMinBoiler', minB.toFixed(1) + ' °C');
+  set('iCount', d.length + ' záznamů');
+  set('iMonthName', month);
+  set('iMonthKwh', monthEnergy.toFixed(2) + ' kWh');
+  set('iAvgDay', monthDays.length ? (monthEnergy / monthDays.length).toFixed(2) + ' kWh' : '–');
+  set('iBestDay', bestDayStr + ' (' + bestDayKwh.toFixed(2) + ' kWh)');
+  set('iDaysWithData', monthDays.length + ' dní');
+
+  const step = Math.max(1, Math.floor(labels.length / 24));
+  const tickLabels = labels.map((l, i) => i % step === 0 ? l : '');
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+      labels: tickLabels,
+      datasets: [
+        {
+          label: 'Bojler °C', data: boilerArr, borderColor: '#1a7fd4',
+          backgroundColor: 'rgba(26,127,212,0.07)', fill: true,
+          borderWidth: 2, pointRadius: 0, tension: 0.3
+        },
+        {
+          label: 'Panel °C', data: panelArr, borderColor: '#e8950a',
+          backgroundColor: 'rgba(232,149,10,0.07)', fill: true,
+          borderWidth: 2, pointRadius: 0, tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: dark ? '#1e1e1e' : '#fff',
+          titleColor: dark ? '#eaeaea' : '#111',
+          bodyColor: dark ? '#aaa' : '#555',
+          borderColor: dark ? '#333' : '#e0e2e6',
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => ' ' + ctx.dataset.label.split(' ')[0] + ': ' + ctx.parsed.y.toFixed(1) + ' °C'
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#888', font: { size: 11 }, maxRotation: 0, autoSkip: false },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        y: {
+          ticks: { color: '#888', font: { size: 11 }, callback: v => v.toFixed(0) + '°' },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        }
       }
     }
   });
-  document.getElementById("month").textContent = monthEnergy.toFixed(1);
+}
 
-  let eff = theoretical > 0 ? (energy / theoretical * 100) : 0;
-  document.getElementById("eff").textContent = eff.toFixed(1);
-
-  if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("chart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        { label: "Bojler °C", data: boiler, borderWidth: 2 },
-        { label: "Panel °C", data: panel, borderWidth: 2 }
-      ]
-    },
-    options: { scales: { x: { display: false } } }
-  });
+function set(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+function badge(id, cls, txt) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'mc-badge ' + cls;
+  el.textContent = txt;
 }
 
 function exportCSV() {
-  let rows = ["date,time,bojler,panel"];
+  const rows = ['date,time,bojler_C,panel_C'];
   Object.values(rawData).flat().forEach(r => {
-    rows.push(`${r.time.toISOString().slice(0,10)},${r.time.toLocaleTimeString()},${r.boiler},${r.panel}`);
+    rows.push([
+      r.time.toISOString().slice(0,10),
+      r.time.toLocaleTimeString('cs-CZ'),
+      r.boiler.toFixed(1),
+      r.panel.toFixed(1)
+    ].join(','));
   });
-  let blob = new Blob([rows.join("\n")], { type: "text/csv" });
-  let a = document.createElement("a");
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = "bojler.csv";
+  a.download = 'bojler.csv';
   a.click();
 }
 
 function toggleDark() {
-  document.body.classList.toggle("dark");
+  dark = !dark;
+  const root = document.documentElement;
+  if (dark) {
+    root.style.setProperty('--bg','#121212');
+    root.style.setProperty('--card','#1e1e1e');
+    root.style.setProperty('--card2','#2a2a2a');
+    root.style.setProperty('--text','#eaeaea');
+    root.style.setProperty('--muted','#888');
+    root.style.setProperty('--border','#333');
+    root.style.setProperty('--badge-ok-bg','#1a2d12');
+    root.style.setProperty('--badge-ok-tx','#9fcb6a');
+    root.style.setProperty('--badge-warn-bg','#2d2010');
+    root.style.setProperty('--badge-warn-tx','#f0b060');
+    root.style.setProperty('--badge-err-bg','#2d1010');
+    root.style.setProperty('--badge-err-tx','#f08080');
+  } else {
+    root.style.setProperty('--bg','#f5f6f8');
+    root.style.setProperty('--card','#fff');
+    root.style.setProperty('--card2','#f0f2f5');
+    root.style.setProperty('--text','#111');
+    root.style.setProperty('--muted','#666');
+    root.style.setProperty('--border','#e0e2e6');
+    root.style.setProperty('--badge-ok-bg','#eaf3de');
+    root.style.setProperty('--badge-ok-tx','#3b6d11');
+    root.style.setProperty('--badge-warn-bg','#faeeda');
+    root.style.setProperty('--badge-warn-tx','#854f0b');
+    root.style.setProperty('--badge-err-bg','#fcebeb');
+    root.style.setProperty('--badge-err-tx','#a32d2d');
+  }
+  if (chart) renderDay();
 }
 </script>
 </body>
